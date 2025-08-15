@@ -1,5 +1,6 @@
 struct stat;
 struct rtcdate;
+struct sysinfo;  // 提前声明结构体
 
 // system calls
 int fork(void);
@@ -23,6 +24,8 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int trace(int);  // 原型声明，参数为跟踪掩码
+int sysinfo(struct sysinfo *);  // 系统调用原型，参数为指向struct sysinfo的指针
 
 // ulib.c
 int stat(const char*, struct stat*);

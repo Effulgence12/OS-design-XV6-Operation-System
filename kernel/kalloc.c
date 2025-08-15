@@ -80,3 +80,18 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+uint64
+free_mem(void)
+{
+    struct run *r;
+    uint64 free = 0;  // 累计空闲内存字节数
+
+    acquire(&kmem.lock);  // 加锁，确保并发安全
+    // 遍历空闲链表，累加每个内存块的大小（每个块为一页，大小为PGSIZE）
+    for (r = kmem.freelist; r; r = r->next)
+        free += PGSIZE;
+    release(&kmem.lock);  // 释放锁
+
+    return free;
+}

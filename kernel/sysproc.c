@@ -6,6 +6,10 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
+
+uint64 free_mem(void);   // 声明 free_mem 函数
+int num_procs(void);     // 声明 num_procs 函数
 
 uint64
 sys_exit(void)
@@ -94,4 +98,38 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_trace(void)
+{
+    int mask;
+    // 从用户态获取第一个参数（掩码），失败则返回-1
+    if (argint(0, &mask) < 0)
+        return -1;
+    // 将掩码保存到当前进程的proc结构中
+    struct proc *p = myproc();
+    p->trace_mask = mask;
+    return 0;  // 成功执行
+}
+
+uint64
+sys_sysinfo(void)
+{
+    struct sysinfo info;       // 内核态的sysinfo结构体，用于存储系统信息
+    struct sysinfo *uinfo;     // 指向用户空间的sysinfo结构体指针
+
+    // 从用户空间获取struct sysinfo的地址，失败则返回-1
+    if (argaddr(0, (uint64 *)&uinfo) < 0)
+        return -1;
+
+    // 收集系统信息：空闲内存字节数和非UNUSED状态的进程数
+    info.freemem = free_mem();   // 获取空闲内存
+    info.nproc = num_procs();    // 获取活跃进程数
+
+    // 将内核态的info结构体复制到用户空间的uinfo指向的地址
+    if (copyout(myproc()->pagetable, (uint64)uinfo, (char *)&info, sizeof(info)) < 0)
+        return -1;
+
+    return 0;  // 成功执行
 }

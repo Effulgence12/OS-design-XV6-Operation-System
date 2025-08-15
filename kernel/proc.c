@@ -291,6 +291,9 @@ fork(void)
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
+  // Copy trace mask from parent to child
+  np->trace_mask = p->trace_mask; // 复制父进程的跟踪掩码
+
   pid = np->pid;
 
   np->state = RUNNABLE;
@@ -692,4 +695,19 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+num_procs(void)
+{
+    struct proc *p;
+    int count = 0;  // 累计活跃进程数
+
+    // 遍历进程数组，统计状态非UNUSED的进程
+    for (p = proc; p < &proc[NPROC]; p++) {
+        if (p->state != UNUSED)
+            count++;
+    }
+
+    return count;
 }
