@@ -178,6 +178,21 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+// add vmprint
+void            vmprint(pagetable_t pagetable);
+// add new function for kernel pg in each process
+void            kvmmap_with_certain_page(pagetable_t pg, uint64 va, uint64 pa, uint64 sz, int perm);
+void            kvmmap_with_certain_page(pagetable_t pg, uint64 va, uint64 pa, uint64 sz, int perm);
+pagetable_t     kvm_init_one();
+
+pte_t *         walk(pagetable_t pagetable, uint64 va, int alloc);
+
+// copy user pagetable to kernel page table
+void            uvm2kvm(pagetable_t u, pagetable_t k, uint64 from, uint64 to);
+
+// copy new
+int             copyin_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len);
+int             copyinstr_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max);
 
 // plic.c
 void            plicinit(void);
