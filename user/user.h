@@ -40,3 +40,6 @@ void free(void*);
 int atoi(const char*);
 int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
+
+int sigalarm(int ticks, void (*handler)());  // 设置警报：ticks后触发handler
+int sigreturn(void);  // 从警报处理程序返回，恢复原执行状态

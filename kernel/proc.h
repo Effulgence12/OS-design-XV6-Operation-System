@@ -103,4 +103,11 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  uint64 handler_va;         // 警报处理函数的用户态虚拟地址
+  int alarm_interval;        // 警报触发间隔（时钟滴答数）
+  int passed_ticks;          // 已过去的滴答数（用于计数）
+  struct trapframe saved_trapframe;  // 保存的陷阱帧（用于恢复执行）
+  int have_return;           // 标记是否已从警报处理返回（用于重新激活计数）
+
 };

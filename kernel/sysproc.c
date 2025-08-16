@@ -58,6 +58,8 @@ sys_sleep(void)
   int n;
   uint ticks0;
 
+  backtrace(); // 插入回溯调用
+
   if(argint(0, &n) < 0)
     return -1;
   acquire(&tickslock);
@@ -94,4 +96,28 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64 sys_sigalarm(void) {
+    int ticks;
+    uint64 handler_va;
+    struct proc *p = myproc();
+
+    // 从用户态获取参数：ticks（间隔）和handler（处理函数地址）
+    if (argint(0, &ticks) < 0 || argaddr(1, &handler_va) < 0)
+        return -1;
+
+    p->alarm_interval = ticks;    // 设置警报间隔
+    p->handler_va = handler_va;   // 保存处理函数地址
+    p->passed_ticks = 0;          // 重置计数器
+    p->have_return = 1;           // 标记可触发警报
+    return 0;
+}
+
+uint64 sys_sigreturn(void) {
+    struct proc *p = myproc();
+    // 恢复保存的陷阱帧（恢复寄存器、程序计数器等）
+    *p->trapframe = p->saved_trapframe;
+    p->have_return = 1;  // 重新激活警报计数
+    return p->trapframe->a0;  // 返回原执行状态的返回值
 }

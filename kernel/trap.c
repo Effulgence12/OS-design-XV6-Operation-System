@@ -77,8 +77,25 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+  if (which_dev == 2) {  // 时钟设备中断（每滴答触发一次）
+        struct proc *p = myproc();
+        // 若已设置警报间隔且处于可触发状态
+        if (p->alarm_interval > 0 && p->have_return) {
+            p->passed_ticks++;  // 递增滴答计数器
+            // 当已过去的滴答数达到警报间隔时，触发处理函数
+            if (p->passed_ticks >= p->alarm_interval) {
+                // 保存当前陷阱帧（用于后续恢复）
+                p->saved_trapframe = *p->trapframe;
+                // 修改陷阱帧的程序计数器（epc），指向警报处理函数
+                p->trapframe->epc = p->handler_va;
+                p->passed_ticks = 0;  // 重置计数器
+                p->have_return = 0;   // 标记未从处理函数返回（暂时禁用计数）
+            }
+        }
+        yield();  // 时钟中断后切换进程
+  }
+
+
 
   usertrapret();
 }

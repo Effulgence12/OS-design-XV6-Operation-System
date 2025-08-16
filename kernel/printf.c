@@ -132,3 +132,18 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+void backtrace(void)
+{
+    printf("backtrace:\n");
+    uint64 fp = r_fp(); // 获取当前帧指针（s0寄存器的值）
+
+    // 循环遍历栈帧，只要帧指针在当前页面内就继续
+    while (PGROUNDDOWN(fp) < PGROUNDUP(fp))
+    {
+        // 帧指针-8的位置存储返回地址（函数调用后要返回的地址）
+        printf("%p\n", *(uint64 *)(fp - 8));
+        // 帧指针-16的位置存储上一个栈帧的帧指针，更新fp以继续遍历
+        fp = *(uint64 *)(fp - 16);
+    }
+}

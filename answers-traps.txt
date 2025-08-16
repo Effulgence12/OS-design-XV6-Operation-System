@@ -1,0 +1,27 @@
+回答以下问题：
+(1) Which registers contain arguments to functions? For example, which register holds 13 in main's call to printf? 哪些寄存器保存函数的参数？例如，在 main 对 printf 的调用中，哪个寄存器保存 13？
+参数使用寄存器 a0 到 a7 传递，分别对应第 1 到第 8 个参数。以此类推，查看call.asm文件中的main函数可知，在 main 调用 printf 时，由寄存器 a2 保存 13。
+ 
+(2) Where is the call to function f in the assembly code for main? Where is the call to g? (Hint: the compiler may inline functions.) 在 main 的汇编代码中，对函数 f 的调用在哪里？对 g 的调用在哪里？(提示：编译器可以内联函数)
+在 main 的汇编代码中，没有显式调用函数 f 和 g 的汇编指令。这是因为编译器对函数进行了内联处理，函数 g 被内联到函数 f 中，而函数 f 又被内联到 main 函数中，因此无需生成单独的函数调用指令。查看 main 函数可以发现，printf 中包含了一个对 f 的调用。但是对应的会汇编代码却是直 接将 f(8)+1 替换为 12 。这就说明编译器对这个函数调用进行了优化。
+
+(3) At what address is the function printf located? 函数 printf 位于哪个地址？
+从上述相关汇编代码可知，跳转到ra + 1536的位置，此时ra的值即为程序计数器（pc）的值。结合代码可知，此时 pc 的值为 0x30，因此 printf 的地址为 0x30 + 1536 = 0x630。
+(4) What value is in the register ra just after the jalr to printf in main? 在 main 中 jalr 到 printf 后，ra 寄存器的值多少？
+根据jalr指令的功能，跳转后ra寄存器的值为跳转前的程序计数器（pc）值加 4。在 main 中执行jalr到 printf 时，跳转前的 pc 值为 0x34，因此ra寄存器的值为 0x34 + 4 = 0x38。
+(5) Run the following code.
+unsigned int i = 0x00646c72;
+printf ("H% x Wo% s", 57616, &i);
+What is the output?If the RISC-V were instead big-endian what would you set i to in order to yield the same output? Would you need to change 57616 to a different value?
+运行下面的代码，回答问题
+unsigned int i = 0x00646c72;
+printf ("H% x Wo% s", 57616, &i);
+输出是什么？如果 RISC-V 是大端序的，要实现同样的效果，需要将 i 设置为什么？需要将 57616 修改为别的值吗？
+输出为 “He110 World”。57616 转换为十六进制是 e110；&i所指向的内存中，由于 RISC-V 是小端序，数据存储为 0x72、0x6c、0x64、0x00，对应字符串 “rld”，因此整体输出为 “He110 World”。
+如果 RISC-V 是大端序，为了得到相同的输出，需要将 i 设置为 0x726c6400。因为大端序中数据高位存于低地址，此时内存中会存储为 0x72、0x6c、0x64、0x00，同样对应字符串 “rld”。
+57616 不需要修改，因为%x以十六进制形式输出整数，57616 的十六进制表示是 e110，与端序无关。
+(6) In the following code, what is going to be printed after 'y='? (note: the answer is not a specific value.) Why does this happen?
+printf ("x=% d y=% d", 3);
+在下面的代码中，之后会打印什么 'y='?(注：答案不是具体值。) 为什么会出现这种情况？
+printf ("x=% d y=% d", 3);
+'y=' 之后会打印一个不确定的 “随机” 值。因为 printf 函数需要两个整数参数，但代码中只提供了一个参数（3）。在 RISC-V 中，函数参数通过寄存器传递，第一个参数用 a0，第二个参数用 a1。此处只设置了 a0 的值为 3，而 a1 寄存器的值未被显式设置，会保留调用 printf 之前在该寄存器中的值，因此打印出的是一个不确定的值。
