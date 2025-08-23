@@ -10,12 +10,32 @@
 #define STACK_SIZE  8192
 #define MAX_THREAD  4
 
-
-struct thread {
-  char       stack[STACK_SIZE]; /* the thread's stack */
-  int        state;             /* FREE, RUNNING, RUNNABLE */
-
+// 线程上下文结构体：保存切换时需保留的寄存器
+struct thread_context {
+    uint64 ra;    // 返回地址（函数调用后需恢复的地址）
+    uint64 sp;    // 栈指针（线程栈的当前位置）
+    // 被调用者保存寄存器（callee-saved registers）
+    uint64 s0;
+    uint64 s1;
+    uint64 s2;
+    uint64 s3;
+    uint64 s4;
+    uint64 s5;
+    uint64 s6;
+    uint64 s7;
+    uint64 s8;
+    uint64 s9;
+    uint64 s10;
+    uint64 s11;
 };
+
+// 线程控制块：包含线程状态、栈、上下文
+struct thread {
+  char stack[STACK_SIZE]; /* the thread's stack */
+  int state;              /* FREE, RUNNING, RUNNABLE */
+  struct thread_context context;
+};
+
 struct thread all_thread[MAX_THREAD];
 struct thread *current_thread;
 extern void thread_switch(uint64, uint64);
@@ -63,6 +83,7 @@ thread_schedule(void)
      * Invoke thread_switch to switch from t to next_thread:
      * thread_switch(??, ??);
      */
+    thread_switch((uint64)&t->context,(uint64)&current_thread->context);
   } else
     next_thread = 0;
 }
@@ -77,6 +98,9 @@ thread_create(void (*func)())
   }
   t->state = RUNNABLE;
   // YOUR CODE HERE
+  // 初始化线程上下文：ra指向入口函数，sp指向栈顶
+  t->context.ra = (uint64)func;  // 线程启动后执行func
+  t->context.sp = (uint64)&t->stack[STACK_SIZE - 1];  // 栈顶地址
 }
 
 void 

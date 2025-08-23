@@ -4,9 +4,12 @@
 #include <assert.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <pthread.h>
 
 #define NBUCKET 5
 #define NKEYS 100000
+
+pthread_mutex_t lock[NBUCKET];  // 桶级锁数组
 
 struct entry {
   int key;
@@ -39,34 +42,37 @@ static
 void put(int key, int value)
 {
   int i = key % NBUCKET;
+  pthread_mutex_lock(&lock[i]);  // 锁定目标桶
 
-  // is the key already present?
+  // 检查键是否存在（加锁保护）
   struct entry *e = 0;
   for (e = table[i]; e != 0; e = e->next) {
-    if (e->key == key)
-      break;
+    if (e->key == key) break;
   }
-  if(e){
-    // update the existing key.
-    e->value = value;
+  if (e) {
+        e->value = value;  // 加锁更新
   } else {
-    // the new is new.
-    insert(key, value, &table[i], table[i]);
+        insert(key, value, &table[i], table[i]);  // 加锁插入
   }
+
+  pthread_mutex_unlock(&lock[i]);  // 解锁
 }
 
 static struct entry*
 get(int key)
 {
   int i = key % NBUCKET;
+  pthread_mutex_lock(&lock[i]);  // 锁定目标桶
 
-
+  // 加锁遍历桶
   struct entry *e = 0;
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key) break;
   }
 
+  pthread_mutex_unlock(&lock[i]);  // 解锁
   return e;
+
 }
 
 static void *
@@ -115,6 +121,12 @@ main(int argc, char *argv[])
     keys[i] = random();
   }
 
+  // 初始化所有桶的锁
+    for (int i = 0; i < NBUCKET; ++i) {
+        pthread_mutex_init(&lock[i], NULL);
+    }
+
+
   //
   // first the puts
   //
@@ -144,4 +156,10 @@ main(int argc, char *argv[])
 
   printf("%d gets, %.3f seconds, %.0f gets/second\n",
          NKEYS*nthread, t1 - t0, (NKEYS*nthread) / (t1 - t0));
+
+  for (int i = 0; i < NBUCKET; ++i) {
+    pthread_mutex_destroy(&lock[i]);
+  }
+  free(tha);
+  return 0;
 }
