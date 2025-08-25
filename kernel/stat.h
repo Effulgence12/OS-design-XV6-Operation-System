@@ -1,6 +1,7 @@
 #define T_DIR     1   // Directory
 #define T_FILE    2   // File
 #define T_DEVICE  3   // Device
+#define T_SYMLINK 4  // 符号链接文件类型（区别于普通文件T_FILE、目录T_DIR等）
 
 struct stat {
   int dev;     // File system's disk device
