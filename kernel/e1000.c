@@ -92,30 +92,72 @@ e1000_init(uint32 *xregs)
   regs[E1000_IMS] = (1 << 7); // RXDW -- Receiver Descriptor Write Back
 }
 
-int
-e1000_transmit(struct mbuf *m)
+int e1000_transmit(struct mbuf *m)
 {
-  //
-  // Your code here.
-  //
-  // the mbuf contains an ethernet frame; program it into
-  // the TX descriptor ring so that the e1000 sends it. Stash
-  // a pointer so that it can be freed after sending.
-  //
-  
+  acquire(&e1000_lock);
+  // 获取 e1000_lock 锁，这个锁用于同步对 e1000 网络设备的访问，以防止并发访问带来的问题。
+
+  uint32 next_index = regs[E1000_TDT];
+  // 从寄存器中读取当前可用的 TX（发送）描述符环的下一个索引。
+  if ((tx_ring[next_index].status & E1000_TXD_STAT_DD) == 0)
+  {
+    // 检查当前下一个描述符的状态是否为 "E1000_TXD_STAT_DD"（表示描述符是否可用）。
+    // 如果不可用，则说明发送队列已满，无法继续发送新的数据包，所以需要释放锁并返回-1，表示发送失败。
+    release(&e1000_lock);
+    return -1;
+  }
+  if (tx_mbufs[next_index])
+    mbuffree(tx_mbufs[next_index]);
+  // 检查下一个描述符的 mbuf 指针是否非空，如果非空，则释放之前可能存储在该描述符中的 mbuf。
+  tx_ring[next_index].addr = (uint64)m->head;
+  tx_ring[next_index].length = (uint16)m->len;
+  // 将 mbuf 中的数据包内容的头部地址和长度存储到下一个描述符中，以便将数据包发送。
+  tx_ring[next_index].cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS;
+  // 设置下一个描述符的命令字段。其中 EOP 表示该描述符为一个完整数据包的结束描述符，
+  // RS 表示发送时将报告状态（Report Status），即在数据包发送完成后触发中断。
+  tx_mbufs[next_index] = m;
+  // 将当前 mbuf 存储到下一个描述符对应的缓冲区中，以便在发送完成后能够释放 mbuf。
+  regs[E1000_TDT] = (next_index + 1) % TX_RING_SIZE;
+  // 更新寄存器中的 TDT（Transmit Descriptor Tail）指针，使其指向下一个可用的描述符。
+  // 这样做后，该描述符就准备好发送数据包了。
+  release(&e1000_lock);
+  // 释放 e1000_lock 锁，允许其他线程再次访问 e1000 网络设备。
   return 0;
+  // 返回0表示数据包发送成功。
 }
 
-static void
-e1000_recv(void)
-{
-  //
-  // Your code here.
-  //
-  // Check for packets that have arrived from the e1000
-  // Create and deliver an mbuf for each packet (using net_rx()).
-  //
+
+
+static void e1000_recv(void) {
+    uint32 next_index = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
+  // 从寄存器中读取当前可用的 RX（接收）描述符环的下一个索引。
+
+  while (rx_ring[next_index].status & E1000_RXD_STAT_DD)
+  {
+    // 循环检查下一个描述符的状态是否为 "E1000_RXD_STAT_DD"（表示描述符中有新的数据包到达）。
+    if (rx_ring[next_index].length > MBUF_SIZE)
+    {
+      panic("MBUF_SIZE OVERFLOW!");
+    }
+    // 检查数据包的长度是否超过了 mbuf 的最大大小（MBUF_SIZE）。如果超过了，就触发 panic（内核恐慌）。
+    rx_mbufs[next_index]->len = rx_ring[next_index].length;
+    // 将接收到的数据包长度存储到对应的 mbuf 中。
+    net_rx(rx_mbufs[next_index]);
+    // 调用 net_rx() 函数，将 mbuf 传递给网络栈处理，以进行后续的数据包处理和解析。
+    rx_mbufs[next_index] = mbufalloc(0);
+    // 分配一个新的 mbuf，并将其存储到接收描述符的缓冲区中，以准备接收下一个数据包。
+    rx_ring[next_index].addr = (uint64)rx_mbufs[next_index]->head;
+    // 将新的 mbuf 的头部地址存储到接收描述符中，以便接收数据包时能够正确写入数据。
+    rx_ring[next_index].status = 0;
+    // 将接收描述符的状态字段清零，表示该描述符已被处理完毕，可以用于接收新的数据包。
+    next_index = (next_index + 1) % RX_RING_SIZE;
+    // 更新下一个可用接收描述符的索引，准备处理下一个接收到的数据包。
+  }
+  regs[E1000_RDT] = (next_index - 1) % RX_RING_SIZE;
+  // 更新寄存器中的 RDT（Receive Descriptor Tail）指针，使其指向最后一个处理过的接收描述符。
+
 }
+
 
 void
 e1000_intr(void)
