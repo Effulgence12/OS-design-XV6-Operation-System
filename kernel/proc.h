@@ -80,6 +80,21 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
+#define VMASIZE 16  // 每个进程最大VMA数量（足够mmaptest使用）
+
+// 虚拟内存区域（VMA）：描述一段连续的虚拟内存映射属性
+struct vma {
+    struct file *file;  // 关联的文件（匿名映射为NULL）
+    int fd;             // 文件描述符
+    int used;           // 标记VMA是否被使用（1=使用，0=空闲）
+    uint64 addr;        // 映射的虚拟地址起始（页对齐）
+    int length;         // 映射长度（页对齐）
+    int prot;           // 内存保护权限（PROT_READ/PROT_WRITE/PROT_EXEC）
+    int flags;          // 映射标志（如MAP_SHARED）
+    int offset;         // 文件偏移量（映射文件时，从该偏移开始读）
+};
+
+
 enum procstate { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -103,4 +118,5 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  struct vma vma[VMASIZE];  // 进程的VMA列表
 };

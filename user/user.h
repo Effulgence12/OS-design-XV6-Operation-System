@@ -23,6 +23,9 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+void* mmap(void *, int, int, int, int, uint);  // mmap调用接口
+int munmap(void *, int);                       // munmap调用接口
+
 
 // ulib.c
 int stat(const char*, struct stat*);

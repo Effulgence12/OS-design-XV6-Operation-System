@@ -5,6 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
+#include "fs.h"
+#include "sleeplock.h"
+#include "file.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -38,7 +42,7 @@ usertrap(void)
 {
   int which_dev = 0;
 
-  if((r_sstatus() & SSTATUS_SPP) != 0)
+  if ((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
 
   // send interrupts and exceptions to kerneltrap(),
@@ -46,14 +50,15 @@ usertrap(void)
   w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
-  
+
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  
-  if(r_scause() == 8){
+
+  if (r_scause() == 8)
+  {
     // system call
 
-    if(p->killed)
+    if (p->killed)
       exit(-1);
 
     // sepc points to the ecall instruction,
@@ -65,19 +70,72 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  }
+  else if ((which_dev = devintr()) != 0)
+  {
     // ok
-  } else {
+  }
+  else if (r_scause() == 13 || r_scause() == 15)
+  {
+    uint64 va = r_stval();
+    if (va >= p->sz || va > MAXVA || PGROUNDUP(va) == PGROUNDDOWN(p->trapframe->sp))
+      p->killed = 1;
+    else // 如果地址在合法范围内
+    {
+      struct vma *vma = 0;
+      for (int i = 0; i < VMASIZE; i++)
+      {
+        if (p->vma[i].used == 1 && va >= p->vma[i].addr &&
+            va < p->vma[i].addr + p->vma[i].length) // 找到包含该地址的 VMA
+        {
+          vma = &p->vma[i]; // 将该 VMA 记录在 vma 变量中
+          break;
+        }
+      }
+
+      if (vma) // 如果找到有效的 VMA，将虚拟地址对齐到页边界
+      {
+        va = PGROUNDDOWN(va);
+        uint64 offset = va - vma->addr;
+        uint64 mem = (uint64)kalloc();
+        if (mem == 0)
+        {
+          p->killed = 1;
+        }
+        else
+        {
+          memset((void *)mem, 0, PGSIZE);
+          ilock(vma->file->ip);
+          readi(vma->file->ip, 0, mem, offset, PGSIZE);
+          iunlock(vma->file->ip);
+          int flag = PTE_U;
+          if (vma->prot & PROT_READ)
+            flag |= PTE_R;
+          if (vma->prot & PROT_WRITE)
+            flag |= PTE_W;
+          if (vma->prot & PROT_EXEC)
+            flag |= PTE_X;
+          if (mappages(p->pagetable, va, PGSIZE, mem, flag) != 0)
+          {
+            kfree((void *)mem);
+            p->killed = 1;
+          }
+        }
+      }
+    }
+  }
+  else
+  {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
   }
 
-  if(p->killed)
+  if (p->killed)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if (which_dev == 2)
     yield();
 
   usertrapret();
